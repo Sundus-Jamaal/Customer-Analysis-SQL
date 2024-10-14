@@ -113,11 +113,18 @@ AND t.transaction_date >= DATE_SUB(CURDATE(), INTERVAL 6 MONTH)
 WHERE t.transaction_id IS NULL;
 ```
 
+The SQL queries included in this project demonstrate various advanced techniques such as:
 
-How to Use:
+- **Joins**: Used to combine data from multiple tables to get comprehensive customer transaction insights.
+- **Aggregations**: Employed to summarize transaction data, calculating totals and averages for deeper insights into spending habits.
+- **Window Functions**: Used to calculate cumulative spending over time, allowing for analysis of customer loyalty and purchasing trends.
+- **Subqueries**: Utilized for identifying key metrics such as top-spending customers and product performance.
+- **Customer Segmentation**: Techniques to categorize customers based on spending patterns for targeted marketing strategies.
 
-You can run the SQL queries in any database system that supports SQL. Simply upload the dataset and execute the queries to analyze customer transactions and gain insights.
+## How to Use
 
-Contact
-For any inquiries or collaboration opportunities, feel free to connect with me on LinkedIn.
+You can run these SQL queries in any database management system that supports SQL. Just ensure you have the necessary tables and data uploaded, including `customers`, `transactions`, and `products`.
 
+## Contact
+
+Feel free to connect with me for any inquiries or collaboration opportunities.
