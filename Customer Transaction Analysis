@@ -1,0 +1,175 @@
+-- 1. Join Customers and Transactions
+-- Purpose: To view customer transaction data, such as the amount spent and date of transaction.
+SELECT c.customer_id, c.customer_name, t.transaction_id, t.transaction_date, t.amount_spent
+FROM customers c
+JOIN transactions t
+ON c.customer_id = t.customer_id;
+-- Insight: Provides raw transaction data for each customer.
+
+-- 2. Join Customers, Transactions, and Products
+-- Purpose: To analyze which products are purchased by which customers.
+SELECT c.customer_id, c.customer_name, t.transaction_id, t.transaction_date, p.product_name, t.amount_spent
+FROM customers c
+JOIN transactions t ON c.customer_id = t.customer_id
+JOIN products p ON t.product_id = p.product_id;
+-- Insight: Helps identify customer preferences and product popularity.
+
+-- 3. Total Spending by Each Customer
+-- Purpose: To compute the total amount spent by each customer.
+SELECT c.customer_id, c.customer_name, SUM(t.amount_spent) AS total_spent
+FROM customers c
+JOIN transactions t ON c.customer_id = t.customer_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY total_spent DESC;
+-- Insight: Identifies top-spending customers.
+
+-- 4. Customer Segmentation Based on Total Spending
+-- Purpose: To categorize customers into spending groups.
+SELECT customer_id, customer_name, total_spent,
+CASE
+    WHEN total_spent > 1000 THEN 'High-Spender'
+    WHEN total_spent BETWEEN 500 AND 1000 THEN 'Mid-Spender'
+    ELSE 'Low-Spender'
+END AS customer_segment
+FROM (
+    SELECT c.customer_id, c.customer_name, SUM(t.amount_spent) AS total_spent
+    FROM customers c
+    JOIN transactions t ON c.customer_id = t.customer_id
+    GROUP BY c.customer_id, c.customer_name
+) AS customer_totals;
+-- Insight: Helps segment customers for targeted marketing or retention strategies.
+
+-- 5. Cumulative Spending Over Time Using Window Functions
+-- Purpose: To compute cumulative spending for each customer over time.
+SELECT c.customer_id, c.customer_name, t.transaction_date, t.amount_spent,
+SUM(t.amount_spent) OVER (PARTITION BY c.customer_id ORDER BY t.transaction_date) AS cumulative_spent
+FROM customers c
+JOIN transactions t ON c.customer_id = t.customer_id
+ORDER BY c.customer_id, t.transaction_date;
+-- Insight: Shows customer spending patterns over time.
+
+-- 6. Top-N Products by Customer Spending
+-- Purpose: Identify the top 3 most purchased products for each customer based on total spending.
+WITH CustomerProductSpending AS (
+    SELECT c.customer_id, c.customer_name, p.product_name, SUM(t.amount_spent) AS total_spent
+    FROM customers c
+    JOIN transactions t ON c.customer_id = t.customer_id
+    JOIN products p ON t.product_id = p.product_id
+    GROUP BY c.customer_id, c.customer_name, p.product_name
+)
+SELECT customer_id, customer_name, product_name, total_spent
+FROM (
+    SELECT customer_id, customer_name, product_name, total_spent,
+           ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY total_spent DESC) AS rank
+    FROM CustomerProductSpending
+) ranked
+WHERE rank <= 3;
+-- Insight: Identifies the top 3 products each customer spends the most money on.
+
+-- 7. Average Transaction Value Per Customer Over Time
+-- Purpose: Calculate the average transaction amount per customer, considering only customers who have made more than 5 purchases.
+WITH CustomerTransactionCounts AS (
+    SELECT c.customer_id, c.customer_name, COUNT(t.transaction_id) AS transaction_count, AVG(t.amount_spent) AS avg_transaction_value
+    FROM customers c
+    JOIN transactions t ON c.customer_id = t.customer_id
+    GROUP BY c.customer_id, c.customer_name
+)
+SELECT customer_id, customer_name, avg_transaction_value
+FROM CustomerTransactionCounts
+WHERE transaction_count > 5;
+-- Insight: Identifies loyal customers and calculates the average amount they spend per transaction.
+
+-- 8. Customer Retention: Identifying Repeat Customers
+-- Purpose: Find customers who made multiple transactions over different time periods, showing their return behavior.
+WITH CustomerTransactions AS (
+    SELECT c.customer_id, c.customer_name, COUNT(DISTINCT DATE(t.transaction_date)) AS active_days
+    FROM customers c
+    JOIN transactions t ON c.customer_id = t.customer_id
+    GROUP BY c.customer_id, c.customer_name
+)
+SELECT customer_id, customer_name, active_days
+FROM CustomerTransactions
+WHERE active_days > 1;
+-- Insight: Identifies repeat customers who made transactions on more than one distinct day.
+
+-- 9. Percentage of Total Sales by Product Category
+-- Purpose: Calculate the percentage of total sales for each product category, relative to the overall sales.
+WITH ProductSales AS (
+    SELECT p.category, SUM(t.amount_spent) AS category_sales
+    FROM products p
+    JOIN transactions t ON p.product_id = t.product_id
+    GROUP BY p.category
+),
+TotalSales AS (
+    SELECT SUM(amount_spent) AS total_sales
+    FROM transactions
+)
+SELECT p.category, ps.category_sales, 
+       ROUND((ps.category_sales / ts.total_sales) * 100, 2) AS percent_of_total_sales
+FROM ProductSales ps, TotalSales ts
+ORDER BY percent_of_total_sales DESC;
+-- Insight: Displays which product categories contribute the most to total sales.
+
+-- 10. Time-Series Analysis: Monthly Sales Trends
+-- Purpose: Calculate total sales per month to identify seasonal or monthly sales trends.
+SELECT TO_CHAR(t.transaction_date, 'YYYY-MM') AS month, SUM(t.amount_spent) AS monthly_sales
+FROM transactions t
+GROUP BY TO_CHAR(t.transaction_date, 'YYYY-MM')
+ORDER BY month;
+-- Insight: Identifies peak and slow sales periods throughout the year.
+
+-- 11. Customer Churn: Identifying Inactive Customers
+-- Purpose: Identify customers who have not made any transactions in the last 6 months.
+SELECT c.customer_id, c.customer_name
+FROM customers c
+LEFT JOIN transactions t ON c.customer_id = t.customer_id
+GROUP BY c.customer_id, c.customer_name
+HAVING MAX(t.transaction_date) < CURRENT_DATE - INTERVAL '6 months';
+-- Insight: Identifies inactive customers for churn prevention strategies.
+
+-- 12. Ranking Customers by Their Average Transaction Value
+-- Purpose: Rank customers based on their average transaction amount to identify high-value customers.
+SELECT c.customer_id, c.customer_name, AVG(t.amount_spent) AS avg_spent,
+       RANK() OVER (ORDER BY AVG(t.amount_spent) DESC) AS spending_rank
+FROM customers c
+JOIN transactions t ON c.customer_id = t.customer_id
+GROUP BY c.customer_id, c.customer_name
+ORDER BY spending_rank;
+-- Insight: Ranks customers based on their average spending per transaction.
+
+-- 13. Product Popularity by Region
+-- Purpose: Analyze product popularity based on different regions.
+SELECT r.region_name, p.product_name, COUNT(t.transaction_id) AS purchase_count
+FROM regions r
+JOIN customers c ON r.region_id = c.region_id
+JOIN transactions t ON c.customer_id = t.customer_id
+JOIN products p ON t.product_id = p.product_id
+GROUP BY r.region_name, p.product_name
+ORDER BY r.region_name, purchase_count DESC;
+-- Insight: Shows which products are most popular in different regions.
+
+-- 14. Identifying Potential Fraud: High Frequency Transactions
+-- Purpose: Find customers who have made unusually high numbers of transactions within a short time frame.
+WITH CustomerTransactionFrequency AS (
+    SELECT c.customer_id, c.customer_name, COUNT(t.transaction_id) AS transaction_count,
+           MIN(t.transaction_date) AS first_transaction, MAX(t.transaction_date) AS last_transaction
+    FROM customers c
+    JOIN transactions t ON c.customer_id = t.customer_id
+    GROUP BY c.customer_id, c.customer_name
+)
+SELECT customer_id, customer_name, transaction_count, 
+       (last_transaction - first_transaction) AS transaction_timeframe
+FROM CustomerTransactionFrequency
+WHERE transaction_count > 10 AND (last_transaction - first_transaction) < INTERVAL '1 day';
+-- Insight: Identifies potential fraud by detecting unusually high transaction frequency.
+
+-- 15. Detecting Sales Anomalies with Standard Deviation
+-- Purpose: Identify anomalies in the amount spent per transaction by calculating the standard deviation.
+WITH TransactionStats AS (
+    SELECT AVG(t.amount_spent) AS avg_spent, STDDEV(t.amount_spent) AS stddev_spent
+    FROM transactions t
+)
+SELECT t.transaction_id, t.customer_id, t.amount_spent
+FROM transactions t, TransactionStats ts
+WHERE t.amount_spent > (ts.avg_spent + 3 * ts.stddev_spent) OR t.amount_spent < (ts.avg_spent - 3 * ts.stddev_spent);
+-- Insight: Detects statistical outliers in transaction amounts to identify potential errors or extraordinary purchases.
